@@ -61,6 +61,7 @@ class _MapState extends State<Map> {
                 compassEnabled: true,
                 markers: _markers,
                 onCameraMove: _onCameraMove,
+                polylines: _polylines,
               ),
               Positioned(
                 top: 50.0,
@@ -120,10 +121,10 @@ class _MapState extends State<Map> {
                   ),
                   child: TextField(
                     cursorColor: Colors.black,
-                    // controller: destinationController,
+                    controller: destinationController,
                     textInputAction: TextInputAction.go,
                     onSubmitted: (value) {
-                      // sendRequest(value);
+                      sendRequest(value);
                     },
                     decoration: InputDecoration(
                       icon: Container(
@@ -171,12 +172,12 @@ class _MapState extends State<Map> {
     });
   }
 
-  void _onAddMarkerPressed() {
+  void _addMarker(LatLng location, String address) {
     setState(() {
       _markers.add(Marker(
           markerId: MarkerId(_lastPosition.toString()),
-          position: _lastPosition,
-          infoWindow: InfoWindow(title: 'remember here', snippet: 'good place'),
+          position: location,
+          infoWindow: InfoWindow(title: address, snippet: 'go here'),
           icon: BitmapDescriptor.defaultMarker));
     });
   }
@@ -236,10 +237,39 @@ class _MapState extends State<Map> {
         .getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
     List<Placemark> placemark = await Geolocator()
         .placemarkFromCoordinates(position.latitude, position.longitude);
-    print("placemark $placemark");
+    print(">>> placemark: ${placemark[0]}");
     setState(() {
       _initialPosition = LatLng(position.latitude, position.longitude);
       locationController.text = placemark[0].name;
+    });
+  }
+
+  void sendRequest(String destinationLocation) async {
+    // convert location to coordinate
+    List<Placemark> placemark =
+        await Geolocator().placemarkFromAddress(destinationLocation);
+    double latitude = placemark[0].position.latitude;
+    double longitude = placemark[0].position.longitude;
+    LatLng destinationPoint = LatLng(latitude, longitude);
+
+    // add marker at destination location
+    _addMarker(destinationPoint, destinationLocation);
+
+    // get 'route' is encode points overview
+    String route = await googleMapsServices.getRouteCoordinates(
+        _initialPosition, destinationPoint);
+
+    // draw polyline
+    createRoute(route);
+  }
+
+  void createRoute(String encodedPoly) {
+    setState(() {
+      _polylines.add(Polyline(
+          polylineId: PolylineId(_lastPosition.toString()),
+          width: 10,
+          points: convertToLatLng(decodePoly(encodedPoly)),
+          color: Colors.black));
     });
   }
 }
